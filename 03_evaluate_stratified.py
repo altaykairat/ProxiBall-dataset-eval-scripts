@@ -2,13 +2,11 @@ import csv
 import numpy as np
 from pathlib import Path
 
-# ==========================================
-# 1. ФУНКЦИИ МАТЧИНГА (IoU и NWD)
-# ==========================================
+# IoU & NWD
 
 def calculate_iou(box1, box2):
     """
-    Вычисляет Intersection over Union (IoU).
+    IoU
     """
     b1_x1, b1_y1 = box1[0] - box1[2]/2, box1[1] - box1[3]/2
     b1_x2, b1_y2 = box1[0] + box1[2]/2, box1[1] + box1[3]/2
@@ -26,31 +24,27 @@ def calculate_iou(box1, box2):
     
     return inter_area / (b1_area + b2_area - inter_area + 1e-6)
 
-def calculate_nwd(box1, box2, img_w=1920, img_h=1080, C=12.8):
+def calculate_nwd(box1, box2, img_w=960, img_h=960, C=6.4):
     """
-    Вычисляет Normalized Wasserstein Distance (NWD) для микро-объектов.
-    Оценивает боксы как 2D Гауссианы, смягчая штраф за сдвиг в 1-2 пикселя.
+    NWD for micro-objects.
     """
-    # Перевод нормализованных координат в абсолютные пиксели
+    # normalized -> pixels
     cx1, cy1, w1, h1 = box1[0]*img_w, box1[1]*img_h, box1[2]*img_w, box1[3]*img_h
     cx2, cy2, w2, h2 = box2[0]*img_w, box2[1]*img_h, box2[2]*img_w, box2[3]*img_h
     
-    # Квадрат расстояния Вассерштейна (W_2^2)
+    # Wasserstein Distance (W_2^2)
     center_dist2 = (cx1 - cx2)**2 + (cy1 - cy2)**2
     shape_dist2 = ((w1 - w2)**2 + (h1 - h2)**2) / 4.0
     w2_squared = center_dist2 + shape_dist2
     
-    # Нормализация
+    # Normalization
     nwd = np.exp(-np.sqrt(w2_squared) / C)
     return nwd
 
-# ==========================================
-# 2. ОСНОВНАЯ ЛОГИКА ОЦЕНКИ
-# ==========================================
 
 def calculate_stratified_recall(model_name, gt_dir, pred_dir, conf_thresh, match_metric, match_thresh):
     """
-    Рассчитывает Recall с разбивкой по размеру (Size) и скорости (Velocity).
+    Recall with size and velocity stratification.
     """
     gt_paths = list(Path(gt_dir).glob('*.txt'))
     
@@ -78,7 +72,7 @@ def calculate_stratified_recall(model_name, gt_dir, pred_dir, conf_thresh, match
             size_b = "Small" if area < 0.00025 else "Med" if area < 0.002 else "Large"
             vel_b = "Slow" if ratio < 1.05 else "Med" if ratio < 1.3 else "Fast"
             
-            # --- ВЫБОР МЕТРИКИ МАТЧИНГА ---
+            # Matching metric selection
             matched = False
             gt_box = [gt_x, gt_y, gt_w, gt_h]
             
@@ -96,7 +90,7 @@ def calculate_stratified_recall(model_name, gt_dir, pred_dir, conf_thresh, match
                     matched = True
                     break 
             
-            # Запись (Индекс 0: TP, Индекс 1: Total GT)
+            # (Index 0: TP, Index 1: Total GT)
             stats["Size"][size_b][1] += 1
             stats["Velocity"][vel_b][1] += 1
             if matched:
@@ -117,29 +111,26 @@ def calculate_stratified_recall(model_name, gt_dir, pred_dir, conf_thresh, match
 
     return row_data
 
-# ==========================================
-# 3. НАСТРОЙКИ И ЗАПУСК
-# ==========================================
 
 if __name__ == "__main__":
     
-    labels_dir = "/home/altay/Desktop/Footbonaut/6.1.data-eval/testbench/testbench/test/labels"
+    labels_dir = "D:/Altay/dataset-evaluation/6.1.data-eval/testbench/testbench/test/labels"
     
     models = [
-        "Deepsport", "Soccernet", "DFL", "Football-Ball-Detection",
-        "ISSIA", "Ball-Detection", "Test-Project", "ProxiBall"
+        "Soccernet", "DFL", 
+        "Football-Ball-Detection", "ISSIA", 
+        "Ball-Detection", "Test-Project", 
+        "ProxiBall", "ProxiBall-Augmented", "Yolo11s"
     ]
     
-    # --- ИГРАЙТЕ С ЭТИМИ ПАРАМЕТРАМИ ---
-    CONF_THRESH = 0.4          # Имитация продакшена (не трогаем)
-    MATCH_METRIC = 'iou'       # Варианты: 'iou' или 'nwd'
-    MATCH_THRESH = 0.5         # Для IoU попробуйте 0.3 или 0.4. Для NWD попробуйте 0.5 или 0.75.
-    # -----------------------------------
+    CONF_THRESH = 0.4          
+    MATCH_METRIC = 'iou'    # nwd or iou   
+    MATCH_THRESH = 0.5         
     
     all_results = []
     
     for model_name in models:
-        pred_dir = f'/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/02_predictions/{model_name}'
+        pred_dir = f'D:/Altay/dataset-evaluation/6.1.data-eval/outputs/02_predictions/{model_name}'
         
         if not Path(pred_dir).exists():
             print(f"Пропущен {model_name}: нет предсказаний")
@@ -152,8 +143,8 @@ if __name__ == "__main__":
         all_results.append(row)
 
     if all_results:
-        # Динамическое имя файла, чтобы результаты тестов не перезаписывали друг друга
-        out_csv = f"/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/03_stratified_{MATCH_METRIC}_{MATCH_THRESH}.csv"
+        # Dynamic filename to avoid overwriting test results
+        out_csv = f"D:/Altay/dataset-evaluation/6.1.data-eval/outputs/03_stratified/03_stratified_{MATCH_METRIC}_{MATCH_THRESH}.csv"
         
         headers = all_results[0].keys()
         Path(out_csv).parent.mkdir(parents=True, exist_ok=True)

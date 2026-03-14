@@ -26,10 +26,10 @@ def generate_rmse_and_cm(models, gt_dir, preds_root_dir, out_dir, conf_thresh=0.
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     gt_paths = list(Path(gt_dir).glob('*.txt'))
     
-    img_w, img_h = 1920, 1080 # Базовое разрешение для перевода в пиксели
+    img_w, img_h = 960, 960 # Corrected resolution
     rmse_stratified = []
     
-    print("Начинаем расчет RMSE и генерацию Confusion Matrix...\n")
+    print("Starting RMSE calculation and Confusion Matrix generation...\n")
 
     for model_name in models:
         pred_dir = Path(preds_root_dir) / model_name
@@ -39,7 +39,7 @@ def generate_rmse_and_cm(models, gt_dir, preds_root_dir, out_dir, conf_thresh=0.
         tp, fp, fn = 0, 0, 0
         sum_sq_error_global = 0.0
         
-        # Резервуары для стратифицированного RMSE
+        # Reservoirs for stratified RMSE
         # {Category: {Bucket: [sum_sq_error, count]}}
         strat_stats = {
             "Size": {"Small": [0.0, 0], "Med": [0.0, 0], "Large": [0.0, 0]},
@@ -72,14 +72,14 @@ def generate_rmse_and_cm(models, gt_dir, preds_root_dir, out_dir, conf_thresh=0.
                     gt_matched[best_gt_idx] = True
                     tp += 1
                     
-                    # Ошибки локализации
+                    # Localization errors
                     gt_x, gt_y, gt_w, gt_h = gts[best_gt_idx][1:5]
                     p_x, p_y = p[2], p[3]
                     
                     err2 = (p_x * img_w - gt_x * img_w)**2 + (p_y * img_h - gt_y * img_h)**2
                     sum_sq_error_global += err2
                     
-                    # --- КАТЕГОРИЗАЦИЯ ДЛЯ СТРАТИФИКАЦИИ ---
+                    # CATEGORIZATION FOR STRATIFICATION
                     area = gt_w * gt_h
                     ratio = max(gt_w, gt_h) / min(gt_w, gt_h) if min(gt_w, gt_h) > 0 else 1.0
                     
@@ -95,7 +95,7 @@ def generate_rmse_and_cm(models, gt_dir, preds_root_dir, out_dir, conf_thresh=0.
             
             fn += sum(1 for m in gt_matched if not m)
             
-        # Итоговый расчет
+        # Final calculation
         rmse_global = np.sqrt(sum_sq_error_global / tp) if tp > 0 else 0.0
         row = {'Model': model_name, 'RMSE_Global': round(rmse_global, 2)}
         
@@ -106,7 +106,7 @@ def generate_rmse_and_cm(models, gt_dir, preds_root_dir, out_dir, conf_thresh=0.
         
         rmse_stratified.append(row)
         
-        # --- Confusion Matrix Plotting ---
+        # Confusion Matrix Plotting
         plt.figure(figsize=(7, 6))
         cm_matrix = np.array([[tp, fn], [fp, 0]])
         
@@ -137,17 +137,17 @@ def generate_rmse_and_cm(models, gt_dir, preds_root_dir, out_dir, conf_thresh=0.
     if rmse_stratified:
         csv_path = Path(out_dir) / 'Table_2_RMSE_Stratified.csv'
         pd.DataFrame(rmse_stratified).to_csv(csv_path, index=False)
-        print(f"\n[УСПЕХ] Table 2 (Стратифицированный RMSE) сохранена в: {csv_path}")
+        print(f"\n[SUCCESS] Table 2 (Stratified RMSE) saved to: {csv_path}")
 
 if __name__ == "__main__":
-    labels = "/home/altay/Desktop/Footbonaut/6.1.data-eval/testbench/testbench/test/labels"
-    preds_root = "/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/02_predictions"
-    outputs = "/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/06_rmse_and_cm"
+    labels = "D:/Altay/dataset-evaluation/6.1.data-eval/testbench/testbench/test/labels"
+    preds_root = "D:/Altay/dataset-evaluation/6.1.data-eval/outputs/02_predictions"
+    outputs = "D:/Altay/dataset-evaluation/6.1.data-eval/outputs/06_rmse_and_cm"
     
     models_to_eval = [
-        "Soccernet", "DFL", "Football-Ball-Detection",
-        "ISSIA", "Ball-Detection", "Test-Project", "ProxiBall"
+        "ISSIA", "YOLOv11s", "Soccernet", "DFL", "Football-Ball-Detection",
+        "Ball-Detection", "Test-Project", "ProxiBall", "ProxiBall-Augmented"
     ]
     
-    # Запускаем оценку (используем порог 0.4 для симуляции реальной работы системы)
+    # Run evaluation (use threshold 0.4 to simulate real system operation)
     generate_rmse_and_cm(models_to_eval, labels, preds_root, outputs, conf_thresh=0.4)

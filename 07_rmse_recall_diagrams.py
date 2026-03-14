@@ -15,13 +15,21 @@ def generate_final_plots(recall_csv, rmse_csv, out_dir):
         'axes.titlecolor': 'black'
     })
     
-    # ---------------------------------------------------------
-    # 1. Чтение данных
-    # ---------------------------------------------------------
     df_recall = pd.read_csv(recall_csv)
     df_rmse = pd.read_csv(rmse_csv)
     
-    # Резервуар для Bar Charts (Melt format)
+    # Filter and order models
+    target_models = ["ISSIA", "Yolo11s", "Test-Project", "Ball-Detection", "Soccernet", "ProxiBall"]
+    
+    # Filter dataframes
+    df_recall = df_recall[df_recall['Model'].isin(target_models)]
+    df_rmse = df_rmse[df_rmse['Model'].isin(target_models)]
+    
+    # Ensure exact order for Hue in bar charts and palette
+    df_recall['Model'] = pd.Categorical(df_recall['Model'], categories=target_models, ordered=True)
+    df_recall = df_recall.sort_values('Model')
+    
+    # Bar Charts (Melt format)
     melted_data = []
     for _, row in df_recall.iterrows():
         model = row['Model']
@@ -34,16 +42,17 @@ def generate_final_plots(recall_csv, rmse_csv, out_dir):
                     'Recall': row[f'{cat}_{b_name}_Recall(%)']
                 })
     df_long = pd.DataFrame(melted_data)
+    df_long['Model'] = pd.Categorical(df_long['Model'], categories=target_models, ordered=True)
     
-    # --- ЦВЕТОВАЯ ПАЛИТРА ---
-    color_list = ['#3498db', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', '#1abc9c', '#34495e', '#e74c3c']
-    unique_models = df_recall['Model'].unique().tolist()
-    palette = {m: ("#e74c3c" if m == "ProxiBall" else color_list[i % len(color_list)]) 
-               for i, m in enumerate(unique_models)}
+    # Color Palette
+    # Consistent high-contrast color palette (matching core_metrics.py)
+    # "#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#000000", "#D55E00"
+    colors = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#000000"]
+    palette = {m: colors[i] for i, m in enumerate(target_models)}
+    # Overwrite ProxiBall with Red if needed or keep consistent with colors list
+    palette["ProxiBall"] = "#e74c3c" 
     
-    # ---------------------------------------------------------
-    # 2. Graph 2a & 2b: Bar Charts (Recall vs Bins)
-    # ---------------------------------------------------------
+    # Bar Charts (Recall vs Bins)
     for cat_name, file_suffix in [('Velocity', '2a_Recall_Velocity'), ('Size', '2b_Recall_Size')]:
         plt.figure(figsize=(10, 6))
         order = ['Slow', 'Med', 'Fast'] if cat_name == 'Velocity' else ['Small', 'Med', 'Large']
@@ -59,29 +68,29 @@ def generate_final_plots(recall_csv, rmse_csv, out_dir):
         plt.savefig(Path(out_dir) / f'Graph_{file_suffix}.png', dpi=300)
         plt.close()
 
-    # ---------------------------------------------------------
-    # 3. Graph 4-9: Stratified Scatter Plots (RMSE vs Recall)
-    # ---------------------------------------------------------
+    # Stratified Scatter Plots (RMSE vs Recall)
     categories = [
         ('Size', 'Small'), ('Size', 'Med'), ('Size', 'Large'),
         ('Velocity', 'Slow'), ('Velocity', 'Med'), ('Velocity', 'Fast')
     ]
     
-    print("\nГенерируем 6 стратифицированных графиков RMSE vs Recall...")
+    print("\nGenerating 6 stratified RMSE vs Recall graphs...")
 
     for idx, (cat, bucket) in enumerate(categories, start=4):
         plt.figure(figsize=(10, 8))
         
-        # --- BOUNDARY LINES ---
+        # BOUNDARY LINES
         plt.axvline(x=0, color='black', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
         plt.axvline(x=100, color='black', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
         
-        # Данные для текущего бакета
+        # Data for the current bucket
         recall_col = f"{cat}_{bucket}_Recall(%)"
         rmse_col = f"RMSE_{cat}_{bucket}"
         
-        # Мерджим
+        # Merge and enforce order
         df_plot = pd.merge(df_rmse[['Model', rmse_col]], df_recall[['Model', recall_col]], on='Model')
+        df_plot['Model'] = pd.Categorical(df_plot['Model'], categories=target_models, ordered=True)
+        df_plot = df_plot.sort_values('Model')
         
         for i, row in df_plot.iterrows():
             model = row['Model']
@@ -92,16 +101,14 @@ def generate_final_plots(recall_csv, rmse_csv, out_dir):
             x_val = row[recall_col]
             y_val = row[rmse_col]
             
-            plt.scatter(x_val, y_val, color=color, s=size, edgecolors='black', alpha=1.0, zorder=zorder)
+            plt.scatter(x_val, y_val, color=color, s=size, edgecolors='black', alpha=1.0, zorder=zorder, label=model)
             
-            # --- LABEL PLACEMENT ---
+            # LABEL PLACEMENT
             if model == 'ProxiBall':
-                # Place to the left and low (same as before)
                 ha, va = 'right', 'top'
                 xy_off = (-5, -12)
                 f_size = 16
             else:
-                # Place on top of the point
                 ha, va = 'center', 'bottom'
                 xy_off = (0, 10)
                 f_size = 14
@@ -118,7 +125,7 @@ def generate_final_plots(recall_csv, rmse_csv, out_dir):
         plt.ylim(0, ylim_top)
         plt.xlim(-5, 105)
         
-        # Добавляем "Идеальную зону" в правый нижний угол
+        # IDEAL PERFORMANCE ZONE
         plt.text(98, ylim_top * 0.05, "IDEAL PERFORMANCE ZONE", color='darkgreen', fontsize=11, fontweight='bold', 
                  ha='right', va='bottom', bbox=dict(facecolor='white', alpha=0.7, edgecolor='darkgreen'))
         
@@ -130,8 +137,8 @@ def generate_final_plots(recall_csv, rmse_csv, out_dir):
 
 
 if __name__ == "__main__":
-    recall_file = "/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/03_stratified_recall_results_iou0.5.csv"
-    rmse_file = "/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/06_rmse_and_cm/Table_2_RMSE_Stratified.csv"
-    output_folder = "/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/07_final_graphs"
+    recall_file = "D:/Altay/dataset-evaluation/6.1.data-eval/outputs/03_stratified/03_stratified_iou_0.5.csv"
+    rmse_file = "D:/Altay/dataset-evaluation/6.1.data-eval/outputs/06_rmse_and_cm/Table_2_RMSE_Stratified.csv"
+    output_folder = "D:/Altay/dataset-evaluation/6.1.data-eval/outputs/07_final_graphs"
     
     generate_final_plots(recall_file, rmse_file, output_folder)

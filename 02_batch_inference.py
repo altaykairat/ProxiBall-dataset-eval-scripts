@@ -57,17 +57,18 @@ def run_batch_inference(models_dict, img_dir, out_root, conf_thresh=0.001, chunk
 
 if __name__ == "__main__":
     models = {
-        #"Deepsport" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/deepsport.pt",
-        "Soccernet": "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/soccernet.pt",
-        "DFL" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/dfl_bundesliga.pt",
-        "Football-Ball-Detection" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/football-ball-det.pt",
-        "ISSIA" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/issia.pt",
-        "Ball-Detection" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/old_dataset.pt",
-        "Test-Project" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/test-project-swapped.pt",
-        "ProxiBall" : "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/main.pt"
+        "ProxiBall-Augmented" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/proxiball_augmented.pt",
+        "ProxiBall" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/proxiball_raw.pt",
+        "Soccernet": "D:/Altay/dataset-evaluation/6.1.data-eval/weights/soccernet.pt",
+        "DFL" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/dfl_bundesliga.pt",
+        "Football-Ball-Detection" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/football-ball-det.pt",
+        "ISSIA" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/issia.pt",
+        "Ball-Detection" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/old_dataset.pt",
+        "Test-Project" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/test-project.pt",
+        "Yolo11s" : "D:/Altay/dataset-evaluation/6.1.data-eval/weights/yolo11s.pt" 
     }
     
-    img_dir = '/home/altay/Desktop/Footbonaut/6.1.data-eval/testbench/testbench/test/images'
-    out_dir = '/home/altay/Desktop/Footbonaut/6.1.data-eval/outputs/02_predictions'
+    img_dir = 'D:/Altay/dataset-evaluation/6.1.data-eval/testbench/testbench/test/images'
+    out_dir = 'D:/Altay/dataset-evaluation/6.1.data-eval/outputs/02_predictions'
     
-    run_batch_inference(models, img_dir, out_dir, chunk_size=8)
+    run_batch_inference(models, img_dir, out_dir, chunk_size=128)
