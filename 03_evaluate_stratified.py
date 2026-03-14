@@ -67,7 +67,7 @@ def calculate_stratified_recall(model_name, gt_dir, pred_dir, conf_thresh, match
         for gt in gts:
             _, gt_x, gt_y, gt_w, gt_h = gt
             area = gt_w * gt_h
-            ratio = max(gt_w, gt_h) / min(gt_w, gt_h) if min(gt_w, gt_h) > 0 else 1.0
+            ratio = gt_w / gt_h if gt_h > 0 else 1.0
             
             size_b = "Small" if area < 0.00025 else "Med" if area < 0.002 else "Large"
             vel_b = "Slow" if ratio < 1.05 else "Med" if ratio < 1.3 else "Fast"
