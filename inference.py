@@ -3,7 +3,7 @@ dfl = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/dfl_bundesliga.pt"
 issia = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/issia.pt"
 old_dataset = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/old_dataset.pt"
 soccernet = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/soccernet.pt"
-test_proj = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/test-project.pt"
+test_proj = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/test-project-swapped.pt"
 football_ball_det = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/football-ball-det.pt"
 main = "/home/altay/Desktop/Footbonaut/6.1.data-eval/weights/main.pt"
 
@@ -22,7 +22,7 @@ def validate_model(weights_path, data_config, project_name, exp_name):
         data=data_config,    
         split='test',        
         imgsz=960,           
-        batch=12,
+        batch=8,
         conf=0.001,          
         iou=0.6,             
         project=project_name, 
@@ -53,10 +53,29 @@ def validate_model(weights_path, data_config, project_name, exp_name):
     print(f"Precision: {results.box.mp:.4f}")
     print(f"Recall: {results.box.mr:.4f}")
 
+models = {
+    "deepsport": deepsport,
+    "dfl": dfl,
+    "issia": issia,
+    "old_dataset": old_dataset,
+    "soccernet": soccernet,
+    "test_proj": test_proj,
+    "football_ball_det": football_ball_det,
+    "main": main
+}
+
 if __name__ == "__main__":
-    validate_model(
-        weights_path=soccernet, 
-        data_config=testbench,
-        project_name="Ablation_6_1_Results_2",
-        exp_name="soccernet_vs_testbench"
-    )
+    project_name = "Ablation_6_1_Results_Batch"
+    
+    for name, path in models.items():
+        print(f"\n{'='*50}")
+        print(f"Validating model: {name}")
+        print(f"Path: {path}")
+        print(f"{'='*50}\n")
+        
+        validate_model(
+            weights_path=path, 
+            data_config=testbench,
+            project_name=project_name,
+            exp_name=f"{name}_vs_testbench"
+        )

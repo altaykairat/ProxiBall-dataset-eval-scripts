@@ -1,0 +1,39 @@
+Conference Paper 1
+
+Subtopic 1: "Close-proximity high-speed sport ball detection"
+
+Deliverables / Contribution product:
+
+- Custom Dataset
+
+Checklist:
+
+- [x]  Gold Testbench
+- [x]  Open-source dataset training
+    - [x]  synthetic blur
+- [x]  Custom Dataset training
+- [ ]  Custom Dataset augmentations + training
+- [ ]  Validation
+    - [ ]  mAP50
+    - [ ]  mAP50-95
+    - [ ]  NWD-mAP
+    - [ ]  Precision
+    - [ ]  Recall
+    - [ ]  F1 score curve
+    - [ ]  Recall vs Velocity
+        - [ ]  divide testbench into 3 subsets by velocity
+        - [ ]  bar chart
+    - [ ]  Recall vs Ball Size
+        - [ ]  division of testbench into 3 sets by pixel area
+    - [ ]  Localization RMSE
+- [ ]  Data Analysis:
+    - [ ]  Table 1. Dataset comparison: [model, train dataset, metrics]
+    - [ ]  Table 2. RMSE for each model on testbench
+    - [ ]  Graph 1. Precision-Recall
+    - [ ]  Graph 2. Bar chart “recall vs velocity” “recall vs ball size”
+    - [ ]  Graph 3. Confusion Matrix
+    - [ ]  [ ] Результаты сохранены в формате (class, confidence, x, y, w, h) для каждой модели.
+- [ ]  Visual analysis
+    - [ ]  **Сцена "Motion Blur"**: Три картинки рядом (Original, SoccerNet prediction — промах, Your prediction — попадание).
+    - [ ]  **Сцена "Truncated"**: Мяч наполовину скрыт за краем кадра. Показать, что твоя модель видит его, а остальные — нет.
+    - [ ]  **Сцена "Low Contrast"**: Мяч на фоне темных панелей арены или под яркой лампой (блик).
