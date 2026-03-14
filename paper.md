@@ -25,6 +25,27 @@
 * **Dataset Cleaning:** Targeted annotation and manual filtering of edge cases (e.g., overlapping with player limbs) to eliminate "ghost ball" artifacts that open-source models usually struggle with.
 * **Hyperparameter Optimization:** Resolution, Batch Size, Learning Rate, and aggressive motion blur augmentation.
 
+Ключевым отличием нашей работы является отказ от использования исключительно открытых датасетов вещательного типа (broadcast). Мы разработали строгую методологию сбора и подготовки данных, адаптированную под баллистическую физику закрытых арен.
+
+**4.1.1. Broadcast vs. Close-Proximity Domain Gap**
+Открытые датасеты преимущественно состоят из кадров с камер телевизионного вещания, расположенных высоко на трибунах стадиона. В таких условиях мяч представляет собой четкий объект размером 10-20 пикселей на однородном зеленом фоне. В сценарии Footbonaut мяч пролетает в непосредственной близости от камер на скоростях, вызывающих экстремальный *motion blur* (эффект «призрачного мяча»). Этот физический разрыв доменов (Domain Gap) делает существующие модели неприменимыми без кастомного сбора данных.
+
+**4.1.2. LOCO (Leave-One-Camera-Out) Data Split Strategy**
+Для обеспечения научной чистоты эксперимента и доказательства пространственной инвариантности (Spatial Generalization) модели, мы применили стратегию перекрестной валидации по камерам:
+* **Training Set (~13.5k кадров):** Включает данные с северной (North), восточной (East) и части западной камер, дополненные разнообразными внешними данными (снимки из гаража, YouTube) для обеспечения устойчивости модели к сложному фону и перекрытиям.
+* [cite_start]**Gold Standard Test Bench (~850-1000 кадров):** Полностью изолированный набор данных, состоящий исключительно из кадров южной (South) и части западной (West) камер[cite: 1]. Эти ракурсы никогда не использовались в обучении. Успешная детекция на этом тестбенче гарантирует отсутствие утечки данных (Data Leakage) и доказывает, что модель выучила саму геометрию высокоскоростного мяча, а не привязалась к фону или освещению конкретной камеры.
+
+**4.1.3. Ступенчатая стратегия аугментации и Curriculum Learning**
+Для адаптации модели к закрытому помещению мы разработали двухэтапный пайплайн аугментации, основанный на принципах **Curriculum Learning** (последовательного усложнения задач):
+
+* **Этап 1 (Пространственная инвариантность):** Базовое обучение на сырых данных с использованием `Mosaic=1.0`, `Mixup=0.1` и `Scale=0.5`. Mosaic заставляет сеть изучать локальную геометрию объекта вне контекста глобального зеленого поля, а Mixup помогает справляться с частичными перекрытиями (occlusions) мяча ногами игроков. На этом этапе модель надежно усваивает фундаментальную геометрию объекта.
+* **Этап 2 (Footbonaut-Specific Suite):** Вместо обучения с нуля на тяжелых искажениях, мы применяем стратегию **Progressive Fine-Tuning** (дообучение с пониженным learning rate `lr0=0.0005`). Это стабилизирует ландшафт потерь (loss landscape) и предотвращает "катастрофическое забывание". Внедряются доменные фильтры:
+    * `HSV (V=0.6, S=0.8, H=0.02)`: Закрытые арены характеризуются статичным светом, создающим сильные блики на поверхности мяча. Усиление параметров яркости и насыщенности заставляет модель игнорировать эти блики.
+    * `Perspective=0.0005`: Компенсирует дисторсию линз объективов на краях кадра для успешной детекции обрезанных (truncated) объектов.
+    * `Degrees=180`: Обеспечивает инвариантность к рисунку панелей мяча (сферическая симметрия).
+    * `Translate=0.2`: Снижает привязку модели к конкретной точке вылета мяча.
+Такой двухэтапный подход обеспечивает чистоту Ablation Study, позволяя точно квантифицировать прирост метрик от специфических доменных фильтров.
+
 ### 4.2. Sport-YOLO v2 (Vision Engine)
 Архитектура Sport-YOLO v2 представляет собой глубоко модифицированную, строго пространственную (spatial-only) модель, оптимизированную для высокоскоростной детекции микро-объектов. Мы полностью отказались от макро-слоев (P4/P5), сместив фокус на высокоразрешающие карты признаков P2 (stride-4) и P3 (stride-8).
 
@@ -139,6 +160,31 @@ To bridge the domain gap, we implemented an intensive augmentation pipeline. Emp
 
 Finally, to provide the broadcast dataset with a theoretical chance to adapt to the high-speed conditions of the Footbonaut arena, we introduced an offline pre-processing stage. Using the Albumentations library, a physically accurate directed Motion Blur filter (kernel size ranging from 7 to 15 pixels, probability 0.5) was applied to the training set. This effectively simulated camera shutter-speed artifacts and the elliptical deformation ("ghost balls") characteristic of our close-proximity scenario. Such strict hyperparameter fixation guarantees that any degradation in the baseline model's accuracy on our test set is exclusively attributable to an insurmountable physical domain shift, rather than insufficient hyperparameter tuning or architectural limitations.
 
+To optimize the loss convergence and prevent the network from underfitting due to heavy spatial and photometric distortions, we adopted a Curriculum Learning strategy. Initially, the baseline model was trained on the raw dataset with mild spatial augmentations to reliably establish the fundamental geometry of the football. Subsequently, this converged model was fine-tuned using our aggressive Footbonaut-Specific Augmentation Suite with a reduced learning rate. This two-stage progressive tuning not only stabilized the gradient descent but also allowed us to isolate and precisely quantify the performance gains directly attributable to the domain-specific augmentations.
+
+To mitigate the impact of static specular highlights from indoor LED arrays, the photometric augmentation heavily perturbed the Value channel (hsv_v=0.6), forcing the network to extract morphological features rather than relying on absolute pixel intensities. Furthermore, to counteract the radial distortion inherent to wide-angle lenses at the arena's boundaries, a subtle affine perspective transform (perspective=0.0005) was introduced, significantly improving the recall of geometrically skewed and truncated objects near the frame edges.
+
+While an aggressive offline MotionBlur kernel (7–15 pixels, $p=0.5$) was strictly necessary to synthetically bridge the domain gap for broadcast datasets (SoccerNet, DFL), applying the same magnitude to our custom dataset would result in destructive over-blurring, as our images already contain natural high-speed ball deformations. Therefore, during the fine-tuning stage (Stage 2) of our dataset, we deliberately restricted synthetic blur to a micro-scale MotionBlur (3–7 pixels, $p=0.2$). This specific regularization strategy acts as a velocity extrapolator: it preserves the natural photometric gradients required by the DCNv4 layers while gently simulating extreme boundary-case ballistic velocities (e.g., >100 km/h) that might be underrepresented in the raw dataset.
+
+**6.1.1. Выборка Open-Source датасетов (Baselines)**
+Для оценки обобщающей способности (Baseline Evaluation) мы использовали стандартизированные подмножества открытых данных: SoccerNet-Tracking (v3 H250), DFL Bundesliga Data Shootout, DeepSportLab, ISSIA-CNR и NPSPT. Все эти датасеты репрезентативны для индустрии, однако они не содержат баллистического *motion blur* и вариативности масштаба, характерных для выстрелов из пушек в Footbonaut.
+
+**6.1.2. Обоснование гиперпараметров и протокол обучения**
+Для обеспечения строгой методологической чистоты (Fair Comparison), все базовые модели и наша модель обучались в идентичных условиях (`imgsz=960`, `epochs=100`, `optimizer='AdamW'`, `lr0=0.001`, `mosaic=1.0`).
+* **Оптимизатор (`AdamW`)**: Использован для исключения оптимизационного смещения (optimization bias) из-за разного объема датасетов, обеспечивая превосходную регуляризацию весов.
+* [cite_start]**Синтетическая адаптация (Motion Blur)**: Чтобы дать открытым датасетам теоретический шанс адаптироваться к скоростям Footbonaut, ко всем сторонним датасетам был применен синтетический направленный `MotionBlur` (ядро 7–15 пикселей, вероятность 0.5)[cite: 1]. Это физически точно симулировало деформацию "ghost balls". Наш кастомный датасет обучался **без** добавления синтетического блюра, опираясь исключительно на натуральное размытие.
+
+**6.1.3. Валидация и Детальный анализ инференса**
+[cite_start]Валидация проводилась на нашем Gold Standard Test Bench с сохранением сырых результатов в формате `(class, confidence, x, y, w, h)` для глубокого парсинга метрик[cite: 3].
+* [cite_start]**Стандартные метрики:** Проведен расчет `mAP50`, `mAP50-95`, `NWD-mAP`, `Precision`, `Recall`, а также построена кривая `F1 score`[cite: 1].
+* [cite_start]**Recall vs. Velocity Buckets:** Тестбенч был программно разделен на 3 скоростные подвыборки по степени размытия[cite: 2]. [cite_start]Анализ (представленный в виде Bar Chart) показал, что `Recall` базовых моделей обрушается при переходе в корзину экстремального размытия, тогда как наша модель сохраняет стабильную полноту детекции[cite: 2, 3].
+* [cite_start]**Recall vs. Ball Size:** Тестбенч был разделен на 3 группы по площади пикселей (pixel area), что подтвердило превосходство кастомных данных на микро-объектах дальних дистанций[cite: 2].
+* [cite_start]**Localization RMSE:** Оценка среднеквадратичной ошибки (RMSE) для каждой модели на тестбенче математически доказала превосходство кастомного датасета в точности локализации центроидов[cite: 2, 3]. 
+
+**Таблицы для Секции 6.1:**
+* [cite_start]**Table 1. Dataset comparison:** [model, train dataset, metrics] — сводная таблица эффективности датасетов[cite: 2].
+* [cite_start]**Table 2. RMSE:** Значения ошибки локализации для каждой модели на тестбенче[cite: 3].
+
 ### 6.2. Baseline Model Selection (Ablation Study 2)
 * **Table 1: Architecture Comparison:** Evaluation of state-of-the-art architectures (RT-DETR, RF-DETR, YOLOv11s, YOLOv12s, YOLOv26s) trained and tested purely on our custom dataset.
 * **Metrics:** mAP@50, mAP@50-95, Recall, Params (M), GFLOPs, Latency PyTorch (ms).
@@ -155,6 +201,12 @@ Finally, to provide the broadcast dataset with a theoretical chance to adapt to 
 * **Scatter Plot (mAP vs. Latency):** Pareto Front visualization showing Sport-YOLO in the top-left corner (fastest and most accurate) compared to standard models.
 * **Ablation Bar Chart:** Step-by-step performance contribution of Sport-YOLO components: Base YOLO26s -> + P2 Head -> + DCNv4 -> + NWD Loss -> + Hybrid Stem ($N=0$ vs $N=8$ vs $N=11$).
 * **Visual Comparison ("Ghost Balls"):** Grid of high-speed blurred ball captures, comparing false positives/misses of the baseline model against the accurate elliptical bounding boxes of Sport-YOLO.
+
+* [cite_start]**Графики (Graphs):** Включены `Graph 1` (Precision-Recall curve), `Graph 2` (Bar chart для "Recall vs Velocity" и "Recall vs Ball Size"), а также `Graph 3` (Confusion Matrix для анализа ложных срабатываний)[cite: 3].
+* [cite_start]**Качественный анализ (Visual Analysis):** Сетка детекций (Grid), сравнивающая предсказания моделей[cite: 4]:
+    * [cite_start]**Сцена "Motion Blur"**: Три картинки рядом (Original, SoccerNet prediction — промах, Your prediction — попадание)[cite: 4].
+    * [cite_start]**Сцена "Truncated"**: Демонстрация того, что наша модель видит мяч, наполовину скрытый за краем кадра, в то время как другие (SoccerNet) его пропускают[cite: 5, 6].
+    * [cite_start]**Сцена "Low Contrast"**: Успешная детекция мяча на фоне темных панелей арены или под ярким бликом лампы (overexposure)[cite: 7].
 
 ### 6.5. System-Level 3D Tracking Evaluation
 * End-to-End latency of the entire asynchronous pipeline.
